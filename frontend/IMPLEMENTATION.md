@@ -173,7 +173,7 @@ cd frontend
 npm install
 npm run dev
 
-# Open: http://localhost:5173
+# Open: http://localhost:3000
 ```
 
 ### Production Build
@@ -268,11 +268,11 @@ Response: {
 
 ### Frontend .env (optional)
 ```
-VITE_API_URL=http://localhost:8089
+VITE_API_URL=https://act-character-dental-trust.trycloudflare.com
 ```
 
 ### Backend Configuration
-Backend must be running on `http://localhost:8089` with:
+Backend must be running on `https://act-character-dental-trust.trycloudflare.com` with:
 - PostgreSQL database initialized
 - 19 tables with SAP O2C data
 - Groq_API_KEY set for chat endpoint

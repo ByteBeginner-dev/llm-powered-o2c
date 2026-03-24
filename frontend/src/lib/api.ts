@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8089',
+  baseURL: import.meta.env.VITE_API_URL || 'https://act-character-dental-trust.trycloudflare.com',
   timeout: 30000,
 })
 

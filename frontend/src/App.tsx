@@ -48,7 +48,7 @@ function App() {
                   Failed to load graph
                 </h2>
                 <p className="text-text-muted text-sm">
-                  {error.message || 'Make sure the backend is running on http://localhost:8089'}
+                  {error.message || 'Make sure the backend is running on https://act-character-dental-trust.trycloudflare.com'}
                 </p>
               </div>
             </div>

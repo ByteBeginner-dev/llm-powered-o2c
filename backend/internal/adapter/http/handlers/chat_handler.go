@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 
 	"o2c-graph/internal/core/domain"
@@ -40,45 +41,25 @@ func (h *Handler) Chat(c *fiber.Ctx) error {
 		"query": req.Query,
 	})
 
-	// Step 1: Call Groq to generate SQL - let LLM handle OFFTOPIC decision
-	logger.InfoWithDataIP(utils.CategoryGroq, "Chat - Calling Groq to generate SQL", clientIP, map[string]interface{}{
-		"query": req.Query,
-	})
-
-	sqlQuery, err := usecases.GenerateSQL(h.groqAPIKey, req.Query)
+	// Step 1: Call Groq to generate SQL
+	generatedSQL, err := usecases.GenerateSQL(h.groqAPIKey, req.Query)
 	if err != nil {
 		logger.ErrorWithDataIP(utils.CategoryGroq, "Chat - Failed to generate SQL", clientIP, err, map[string]interface{}{
 			"query": req.Query,
 		})
-		// Return user-friendly error message
-		errorMsg := err.Error()
-		if strings.Contains(errorMsg, "rate limited") {
-			return c.Status(fiber.StatusServiceUnavailable).JSON(domain.ChatResponse{
-				Answer: "AI service is temporarily unavailable. Please try again in a moment.",
-			})
-		}
-		if strings.Contains(errorMsg, "unavailable") {
-			return c.Status(fiber.StatusServiceUnavailable).JSON(domain.ChatResponse{
-				Answer: "AI service is temporarily unavailable. Please try again later.",
-			})
-		}
-		if strings.Contains(errorMsg, "API key") {
-			return c.Status(fiber.StatusInternalServerError).JSON(domain.ChatResponse{
-				Answer: "Server configuration error. Please contact support.",
-			})
-		}
-		return c.Status(fiber.StatusServiceUnavailable).JSON(domain.ChatResponse{
-			Answer: "Failed to process your query. Please try again later.",
+		return c.Status(fiber.StatusInternalServerError).JSON(domain.ChatResponse{
+			Answer: "Failed to process your question. Please try again.",
 		})
 	}
 
 	logger.InfoWithDataIP(utils.CategoryGroq, "Chat - SQL generated", clientIP, map[string]interface{}{
-		"sql": sqlQuery,
+		"query":         req.Query,
+		"generated_sql": generatedSQL,
 	})
 
-	// Step 2: Check if response is OFFTOPIC
-	if strings.TrimSpace(sqlQuery) == "OFFTOPIC" {
-		logger.WarnWithDataIP(utils.CategoryGroq, "Chat - Groq returned OFFTOPIC", clientIP, map[string]interface{}{
+	// Step 2: Check if query is off-topic
+	if strings.TrimSpace(generatedSQL) == "OFFTOPIC" {
+		logger.WarnWithDataIP(utils.CategoryValidation, "Chat - Off-topic query rejected", clientIP, map[string]interface{}{
 			"query": req.Query,
 		})
 		return c.Status(fiber.StatusBadRequest).JSON(domain.ChatResponse{
@@ -86,109 +67,103 @@ func (h *Handler) Chat(c *fiber.Ctx) error {
 		})
 	}
 
-	// Step 3: Execute query
-	logger.DebugWithDataIP(utils.CategoryQuery, "Chat - Executing SQL query", clientIP, map[string]interface{}{
-		"sql": sqlQuery,
+	// Step 3: Sanitize the SQL before execution
+	generatedSQL = sanitizeSQL(generatedSQL)
+
+	logger.InfoWithDataIP(utils.CategoryHandler, "Chat - SQL after sanitization", clientIP, map[string]interface{}{
+		"sanitized_sql": generatedSQL,
 	})
 
-	rows, err := h.db.Query(sqlQuery)
-	if err != nil {
-		logger.ErrorWithDataIP(utils.CategoryQuery, "Chat - Failed to execute SQL", clientIP, err, map[string]interface{}{
-			"sql":   sqlQuery,
-			"error": err.Error(),
-		})
-		// Return user-friendly error based on SQL error
-		errorMsg := err.Error()
-		userFriendlyMsg := "Query execution failed"
-
-		// Detailed error detection
-		if strings.Contains(errorMsg, "unknown function") && (strings.Contains(sqlQuery, "GETDATE") || strings.Contains(sqlQuery, "DATEDIFF")) {
-			userFriendlyMsg = "SQL error: This uses SQL Server functions. This is PostgreSQL. Use NOW() instead of GETDATE(), and INTERVAL for date arithmetic."
-		} else if strings.Contains(errorMsg, "must appear in the GROUP BY clause") || strings.Contains(errorMsg, "aggregate function") {
-			userFriendlyMsg = "SQL error: When using aggregate functions (COUNT, SUM), all non-aggregated columns must be in GROUP BY. Try rephrasing your question."
-		} else if strings.Contains(errorMsg, "column") && strings.Contains(errorMsg, "does not exist") {
-			userFriendlyMsg = "The query referenced columns that don't exist in the database. The AI may have misunderstood the data structure."
-		} else if strings.Contains(errorMsg, "UNION") {
-			userFriendlyMsg = "The query has invalid UNION syntax. Please rephrase your question to be more specific."
-		} else if strings.Contains(errorMsg, "syntax error") {
-			userFriendlyMsg = "The generated query has a syntax error. Please try a simpler or more specific question."
-		} else if strings.Contains(errorMsg, "relation") && strings.Contains(errorMsg, "does not exist") {
-			userFriendlyMsg = "The query referenced a table that doesn't exist. Please verify the table name."
-		} else if strings.Contains(errorMsg, "invalid") {
-			userFriendlyMsg = "The query has an issue with its structure. Please try rephrasing your question."
-		}
-
-		return c.Status(fiber.StatusUnprocessableEntity).JSON(domain.ChatResponse{
-			Answer: userFriendlyMsg,
-			SQL:    sqlQuery,
-		})
-	}
-	defer rows.Close()
-
-	// Parse query results into []map[string]interface{}
-	results, err := scanRows(rows)
-	if err != nil {
-		logger.ErrorWithDataIP(utils.CategoryQuery, "Chat - Failed to scan query results", clientIP, err, map[string]interface{}{
-			"sql":   sqlQuery,
-			"error": err.Error(),
-		})
-		return c.Status(fiber.StatusInternalServerError).JSON(domain.ChatResponse{
-			Answer: "Failed to process query results",
-			SQL:    sqlQuery,
-		})
-	}
-
-	logger.InfoWithDataIP(utils.CategoryQuery, "Chat - SQL executed successfully", clientIP, map[string]interface{}{
-		"rows_returned": len(results),
-		"sql":           sqlQuery,
-	})
-
-	if len(results) == 0 {
-		logger.InfoWithDataIP(utils.CategoryHandler, "Chat - No data found", clientIP, map[string]interface{}{
+	// Step 4: Validate SQL is not empty after sanitization
+	if generatedSQL == "" {
+		logger.WarnWithDataIP(utils.CategoryValidation, "Chat - SQL empty after sanitization", clientIP, map[string]interface{}{
 			"query": req.Query,
 		})
-		return c.Status(fiber.StatusOK).JSON(domain.ChatResponse{
-			Answer: "No data found matching your query.",
-			SQL:    sqlQuery,
-			Rows:   results,
+		return c.Status(fiber.StatusBadRequest).JSON(domain.ChatResponse{
+			Answer: "Could not generate a valid query for that question. Please try rephrasing.",
 		})
 	}
 
-	// Step 5: Call Groq to format answer
-	logger.InfoWithDataIP(utils.CategoryGroq, "Chat - Calling Groq to format answer", clientIP, map[string]interface{}{
-		"rows": len(results),
+	// Step 5: Execute SQL against PostgreSQL
+	rows, err := executeQuery(h.db, generatedSQL)
+	if err != nil {
+		logger.ErrorWithDataIP(utils.CategoryDatabase, "Chat - Query execution failed", clientIP, err, map[string]interface{}{
+			"query":         req.Query,
+			"generated_sql": generatedSQL,
+			"error":         err.Error(),
+		})
+		return c.Status(fiber.StatusBadRequest).JSON(domain.ChatResponse{
+			Answer: fmt.Sprintf("I generated a query but it failed to execute. Try rephrasing your question. Error: %s", err.Error()),
+			SQL:    generatedSQL,
+		})
+	}
+
+	logger.InfoWithDataIP(utils.CategoryDatabase, "Chat - Query executed successfully", clientIP, map[string]interface{}{
+		"query":     req.Query,
+		"row_count": len(rows),
 	})
 
-	answer, err := usecases.FormatAnswer(h.groqAPIKey, req.Query, results)
+	// Step 6: Format the answer using Groq
+	answer, err := usecases.FormatAnswer(h.groqAPIKey, req.Query, rows)
 	if err != nil {
-		logger.WarnWithDataIP(utils.CategoryGroq, "Chat - Failed to format answer, returning raw results", clientIP, map[string]interface{}{
-			"error": err.Error(),
+		logger.ErrorWithDataIP(utils.CategoryGroq, "Chat - Failed to format answer", clientIP, err, map[string]interface{}{
+			"query": req.Query,
 		})
-		// Return results even if formatting fails
-		return c.Status(fiber.StatusOK).JSON(domain.ChatResponse{
-			Answer: "Retrieved data successfully but failed to format answer.",
-			SQL:    sqlQuery,
-			Rows:   results,
+		// Return raw data if formatting fails — don't return 500
+		return c.JSON(domain.ChatResponse{
+			Answer: "Query executed successfully but formatting failed.",
+			SQL:    generatedSQL,
+			Rows:   rows,
 		})
 	}
 
-	logger.InfoWithDataIP(utils.CategoryHandler, "Chat - Success", clientIP, map[string]interface{}{
-		"query":         req.Query,
-		"rows_returned": len(results),
+	logger.InfoWithDataIP(utils.CategoryHandler, "Chat - Response ready", clientIP, map[string]interface{}{
+		"query":     req.Query,
+		"answer":    answer,
+		"row_count": len(rows),
 	})
 
 	return c.JSON(domain.ChatResponse{
 		Answer: answer,
-		SQL:    sqlQuery,
-		Rows:   results,
+		SQL:    generatedSQL,
+		Rows:   rows,
 	})
 }
 
-// REMOVED: Handler-level keyword check - LLM now handles OFFTOPIC detection via system prompt
-// This allows more flexible question handling and better query understanding by the LLM
+// sanitizeSQL cleans LLM output before executing against PostgreSQL
+func sanitizeSQL(raw string) string {
+	s := strings.TrimSpace(raw)
 
-// scanRows converts sql.Rows into []map[string]interface{}
-func scanRows(rows *sql.Rows) ([]map[string]interface{}, error) {
+	// Remove markdown code fences that LLM sometimes adds
+	for _, prefix := range []string{"```sql", "```postgresql", "```pgsql", "```"} {
+		if strings.HasPrefix(s, prefix) {
+			s = strings.TrimPrefix(s, prefix)
+			break
+		}
+	}
+
+	// Remove trailing code fence
+	if strings.HasSuffix(s, "```") {
+		s = strings.TrimSuffix(s, "```")
+	}
+
+	// Remove trailing semicolons
+	s = strings.TrimRight(strings.TrimSpace(s), ";")
+
+	// Remove any leading newlines left after stripping fences
+	s = strings.TrimSpace(s)
+
+	return s
+}
+
+// executeQuery runs a SQL query and returns results as a slice of maps
+func executeQuery(db *sql.DB, query string) ([]map[string]interface{}, error) {
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
 	columns, err := rows.Columns()
 	if err != nil {
 		return nil, err
@@ -197,10 +172,10 @@ func scanRows(rows *sql.Rows) ([]map[string]interface{}, error) {
 	var results []map[string]interface{}
 
 	for rows.Next() {
+		// Create a slice of interface{} to hold column values
 		values := make([]interface{}, len(columns))
 		valuePtrs := make([]interface{}, len(columns))
-
-		for i := range columns {
+		for i := range values {
 			valuePtrs[i] = &values[i]
 		}
 
@@ -208,19 +183,28 @@ func scanRows(rows *sql.Rows) ([]map[string]interface{}, error) {
 			return nil, err
 		}
 
-		entry := make(map[string]interface{})
+		// Build the row map
+		row := make(map[string]interface{})
 		for i, col := range columns {
 			val := values[i]
-			b, ok := val.([]byte)
-			if ok {
-				entry[col] = string(b)
+			// Convert []byte to string for readability
+			if b, ok := val.([]byte); ok {
+				row[col] = string(b)
 			} else {
-				entry[col] = val
+				row[col] = val
 			}
 		}
-
-		results = append(results, entry)
+		results = append(results, row)
 	}
 
-	return results, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Return empty slice instead of nil for clean JSON
+	if results == nil {
+		results = []map[string]interface{}{}
+	}
+
+	return results, nil
 }

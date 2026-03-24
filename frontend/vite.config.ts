@@ -15,11 +15,12 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
-    allowedHosts: ['len-adapter-offering-admitted.trycloudflare.com'],
+    port: 3000,
+    host: true,
+    allowedHosts: 'all',
     proxy: {
       '/api': {
-        target: 'http://localhost:8089',
+        target: 'https://act-character-dental-trust.trycloudflare.com',
         changeOrigin: true,
         rewrite: (path) => path,
       },

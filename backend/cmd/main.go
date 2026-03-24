@@ -99,10 +99,10 @@ func main() {
 
 	// 9. CORS — allow React frontend
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:5173",
+		AllowOrigins:     "*",
 		AllowMethods:     "GET,POST,PUT,DELETE,PATCH,OPTIONS",
 		AllowHeaders:     "Content-Type,Authorization,Accept,Origin,X-Forwarded-For,X-Real-IP",
-		AllowCredentials: true,
+		AllowCredentials: false,
 		MaxAge:           3600,
 	}))
 
@@ -124,7 +124,7 @@ func main() {
 	// 13. Start server
 	port := cfg.Port
 	if port == "" {
-		port = "8089"
+		port = "8189"
 	}
 
 	logger.InfoWithData(utils.CategoryServer, "Server starting", map[string]interface{}{

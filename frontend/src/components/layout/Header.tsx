@@ -14,7 +14,7 @@ export function Header({ chatOpen, onToggleChat }: HeaderProps) {
     // Check connection on mount and every 5 minutes
     const checkConnection = async () => {
       try {
-        const response = await fetch('http://localhost:8089/health', {
+        const response = await fetch('https://act-character-dental-trust.trycloudflare.com/health', {
           mode: 'no-cors',
         })
         setIsConnected(response.ok || response.status === 0)
@@ -42,7 +42,7 @@ export function Header({ chatOpen, onToggleChat }: HeaderProps) {
 
         <div>
           <h1 className="text-sm font-semibold text-text-primary">O2C Graph</h1>
-          <p className="text-xs text-text-muted">Order-to-Cash Intelligence</p>
+          <p className="text-xs text-text-muted">Graph-Based Data Modeling and Query System</p>
         </div>
       </div>
 
