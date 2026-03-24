@@ -19,7 +19,7 @@ func Load() *Config {
 		DatabaseURL: buildDatabaseURL(),
 		GroqApiKey:  mustGetEnv("GroqAPIKey"),
 		DataDir:     mustGetEnv("DataDir"),
-		Port:        mustGetEnv("PORT"),
+		Port:        os.Getenv("PORT"),
 	}
 }
 
