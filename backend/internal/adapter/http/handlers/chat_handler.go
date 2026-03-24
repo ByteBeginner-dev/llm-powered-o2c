@@ -11,7 +11,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// Chat handles natural language queries via Gemini API
+// Chat handles natural language queries via Groq API
 func (h *Handler) Chat(c *fiber.Ctx) error {
 	clientIP := utils.ExtractClientIP(c.IP(), c.Get("X-Forwarded-For"), c.Get("X-Real-IP"))
 	logger := utils.GetLogger()
@@ -40,29 +40,14 @@ func (h *Handler) Chat(c *fiber.Ctx) error {
 		"query": req.Query,
 	})
 
-	// Step 1: Keyword guardrail
-	if !isRelevantQuery(req.Query) {
-		logger.WarnWithDataIP(utils.CategoryValidation, "Chat - Query failed keyword check", clientIP, map[string]interface{}{
-			"query":  req.Query,
-			"reason": "No relevant O2C keywords found",
-		})
-		return c.Status(fiber.StatusBadRequest).JSON(domain.ChatResponse{
-			Answer: "This system is designed to answer questions related to the provided dataset only.",
-		})
-	}
-
-	logger.InfoWithDataIP(utils.CategoryValidation, "Chat - Keyword check passed", clientIP, map[string]interface{}{
-		"query": req.Query,
-	})
-
-	// Step 2: Call Gemini to generate SQL
-	logger.InfoWithDataIP(utils.CategoryGemini, "Chat - Calling Gemini to generate SQL", clientIP, map[string]interface{}{
+	// Step 1: Call Groq to generate SQL - let LLM handle OFFTOPIC decision
+	logger.InfoWithDataIP(utils.CategoryGroq, "Chat - Calling Groq to generate SQL", clientIP, map[string]interface{}{
 		"query": req.Query,
 	})
 
 	sqlQuery, err := usecases.GenerateSQL(h.groqAPIKey, req.Query)
 	if err != nil {
-		logger.ErrorWithDataIP(utils.CategoryGemini, "Chat - Failed to generate SQL", clientIP, err, map[string]interface{}{
+		logger.ErrorWithDataIP(utils.CategoryGroq, "Chat - Failed to generate SQL", clientIP, err, map[string]interface{}{
 			"query": req.Query,
 		})
 		// Return user-friendly error message
@@ -87,13 +72,13 @@ func (h *Handler) Chat(c *fiber.Ctx) error {
 		})
 	}
 
-	logger.InfoWithDataIP(utils.CategoryGemini, "Chat - SQL generated", clientIP, map[string]interface{}{
+	logger.InfoWithDataIP(utils.CategoryGroq, "Chat - SQL generated", clientIP, map[string]interface{}{
 		"sql": sqlQuery,
 	})
 
-	// Step 3: Check if response is OFFTOPIC
+	// Step 2: Check if response is OFFTOPIC
 	if strings.TrimSpace(sqlQuery) == "OFFTOPIC" {
-		logger.WarnWithDataIP(utils.CategoryGemini, "Chat - Gemini returned OFFTOPIC", clientIP, map[string]interface{}{
+		logger.WarnWithDataIP(utils.CategoryGroq, "Chat - Groq returned OFFTOPIC", clientIP, map[string]interface{}{
 			"query": req.Query,
 		})
 		return c.Status(fiber.StatusBadRequest).JSON(domain.ChatResponse{
@@ -101,7 +86,7 @@ func (h *Handler) Chat(c *fiber.Ctx) error {
 		})
 	}
 
-	// Step 4: Execute SQL query
+	// Step 3: Execute query
 	logger.DebugWithDataIP(utils.CategoryQuery, "Chat - Executing SQL query", clientIP, map[string]interface{}{
 		"sql": sqlQuery,
 	})
@@ -112,8 +97,29 @@ func (h *Handler) Chat(c *fiber.Ctx) error {
 			"sql":   sqlQuery,
 			"error": err.Error(),
 		})
-		return c.Status(fiber.StatusInternalServerError).JSON(domain.ChatResponse{
-			Answer: "Query execution failed",
+		// Return user-friendly error based on SQL error
+		errorMsg := err.Error()
+		userFriendlyMsg := "Query execution failed"
+
+		// Detailed error detection
+		if strings.Contains(errorMsg, "unknown function") && (strings.Contains(sqlQuery, "GETDATE") || strings.Contains(sqlQuery, "DATEDIFF")) {
+			userFriendlyMsg = "SQL error: This uses SQL Server functions. This is PostgreSQL. Use NOW() instead of GETDATE(), and INTERVAL for date arithmetic."
+		} else if strings.Contains(errorMsg, "must appear in the GROUP BY clause") || strings.Contains(errorMsg, "aggregate function") {
+			userFriendlyMsg = "SQL error: When using aggregate functions (COUNT, SUM), all non-aggregated columns must be in GROUP BY. Try rephrasing your question."
+		} else if strings.Contains(errorMsg, "column") && strings.Contains(errorMsg, "does not exist") {
+			userFriendlyMsg = "The query referenced columns that don't exist in the database. The AI may have misunderstood the data structure."
+		} else if strings.Contains(errorMsg, "UNION") {
+			userFriendlyMsg = "The query has invalid UNION syntax. Please rephrase your question to be more specific."
+		} else if strings.Contains(errorMsg, "syntax error") {
+			userFriendlyMsg = "The generated query has a syntax error. Please try a simpler or more specific question."
+		} else if strings.Contains(errorMsg, "relation") && strings.Contains(errorMsg, "does not exist") {
+			userFriendlyMsg = "The query referenced a table that doesn't exist. Please verify the table name."
+		} else if strings.Contains(errorMsg, "invalid") {
+			userFriendlyMsg = "The query has an issue with its structure. Please try rephrasing your question."
+		}
+
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(domain.ChatResponse{
+			Answer: userFriendlyMsg,
 			SQL:    sqlQuery,
 		})
 	}
@@ -149,13 +155,13 @@ func (h *Handler) Chat(c *fiber.Ctx) error {
 	}
 
 	// Step 5: Call Groq to format answer
-	logger.InfoWithDataIP(utils.CategoryGemini, "Chat - Calling Groq to format answer", clientIP, map[string]interface{}{
+	logger.InfoWithDataIP(utils.CategoryGroq, "Chat - Calling Groq to format answer", clientIP, map[string]interface{}{
 		"rows": len(results),
 	})
 
 	answer, err := usecases.FormatAnswer(h.groqAPIKey, req.Query, results)
 	if err != nil {
-		logger.WarnWithDataIP(utils.CategoryGemini, "Chat - Failed to format answer, returning raw results", clientIP, map[string]interface{}{
+		logger.WarnWithDataIP(utils.CategoryGroq, "Chat - Failed to format answer, returning raw results", clientIP, map[string]interface{}{
 			"error": err.Error(),
 		})
 		// Return results even if formatting fails
@@ -178,24 +184,8 @@ func (h *Handler) Chat(c *fiber.Ctx) error {
 	})
 }
 
-// isRelevantQuery checks if the user query contains O2C-related keywords
-func isRelevantQuery(query string) bool {
-	keywords := []string{
-		"order", "delivery", "billing", "invoice", "payment", "customer", "product", "material",
-		"plant", "sales", "shipment", "journal", "revenue", "amount", "quantity", "document",
-		"dispatch", "warehouse", "stock", "vendor", "supplier",
-	}
-
-	lowerQuery := strings.ToLower(query)
-
-	for _, keyword := range keywords {
-		if strings.Contains(lowerQuery, keyword) {
-			return true
-		}
-	}
-
-	return false
-}
+// REMOVED: Handler-level keyword check - LLM now handles OFFTOPIC detection via system prompt
+// This allows more flexible question handling and better query understanding by the LLM
 
 // scanRows converts sql.Rows into []map[string]interface{}
 func scanRows(rows *sql.Rows) ([]map[string]interface{}, error) {

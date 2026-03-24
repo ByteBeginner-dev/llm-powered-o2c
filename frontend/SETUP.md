@@ -82,7 +82,7 @@ Navigate to: **http://localhost:5173**
 #### Hooks (API Integration)
 - **useGraph.ts** - Fetches all nodes & edges
 - **useNodeDetail.ts** - Fetches single node with neighbors
-- **useChat.ts** - Manages chat messages and Gemini calls
+- **useChat.ts** - Manages chat messages and Groq calls
 - **useLayoutedElements.ts** - Dagre layout algorithm
 
 #### Styling
@@ -301,9 +301,9 @@ RUN npm run build
 
 ### Chat not working
 
-1. Check Gemini API key in backend .env
+1. Check Groq API key in backend .env
 2. Check backend `/api/chat` endpoint responds
-3. Check Gemini API quota
+3. Check Groq API quota
 4. Check browser console for errors
 
 ### Performance issues
@@ -328,7 +328,7 @@ RUN npm run build
 
 Your O2C Graph Intelligence Dashboard is ready for:
 - ✅ Interactive graph visualization
-- ✅ Natural language queries via Gemini
+- ✅ Natural language queries via Groq
 - ✅ Real-time data exploration
 - ✅ Enterprise analytics
 

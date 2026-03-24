@@ -25,7 +25,7 @@ const (
 	CategoryDatabase   = "DATABASE"
 	CategoryIngestion  = "INGESTION"
 	CategoryMigration  = "MIGRATION"
-	CategoryGemini     = "GEMINI"
+	CategoryGroq       = "Groq"
 	CategoryQuery      = "QUERY"
 	CategoryServer     = "SERVER"
 	CategoryCache      = "CACHE"

@@ -38,28 +38,7 @@ export function Header({ chatOpen, onToggleChat }: HeaderProps) {
   return (
     <header className="h-12 bg-bg-surface border-b border-border flex items-center justify-between px-6">
       <div className="flex items-center gap-3">
-        {/* Hexagon Logo */}
-        <svg
-          width="28"
-          height="28"
-          viewBox="0 0 28 28"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="text-accent"
-        >
-          <path
-            d="M14 2L22.5 6.5V15.5L14 20L5.5 15.5V6.5L14 2Z"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            fill="none"
-          />
-          <path
-            d="M9 8L17 12"
-            stroke="currentColor"
-            strokeWidth="1"
-            opacity="0.5"
-          />
-        </svg>
+        <img src="/src/images/llm.jpg" alt="logo" className="w-8 h-8 rounded-full object-cover" />
 
         <div>
           <h1 className="text-sm font-semibold text-text-primary">O2C Graph</h1>

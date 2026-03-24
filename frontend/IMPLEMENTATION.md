@@ -275,7 +275,7 @@ VITE_API_URL=http://localhost:8089
 Backend must be running on `http://localhost:8089` with:
 - PostgreSQL database initialized
 - 19 tables with SAP O2C data
-- GEMINI_API_KEY set for chat endpoint
+- Groq_API_KEY set for chat endpoint
 
 ---
 
