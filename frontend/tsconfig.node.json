@@ -6,7 +6,6 @@
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "jsx": "react-jsx",
-    "noEmit": true
   },
-  "include": ["vite.config.ts"]
+  "include": []
 }
