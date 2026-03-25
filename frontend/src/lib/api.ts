@@ -42,6 +42,7 @@ export interface ChatResponse {
   answer: string
   sql?: string
   rows?: Array<Record<string, any>>
+  highlight_ids?: string[]
 }
 
 export const graphAPI = {

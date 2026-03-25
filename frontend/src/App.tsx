@@ -11,6 +11,7 @@ import { Node } from '@/lib/api'
 function App() {
   const { nodes, edges, isLoading, error } = useGraph()
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
+  const [highlightedIds, setHighlightedIds] = useState<string[]>([])
   const [chatOpen, setChatOpen] = useState(true)
 
   const handleNodeClick = (nodeType: string, nodeId: string) => {
@@ -20,6 +21,13 @@ function App() {
     if (node) {
       setSelectedNode(node)
     }
+  }
+
+  // Called when AI responds with IDs to highlight
+  const handleHighlight = (ids: string[]) => {
+    setHighlightedIds(ids)
+    // Auto-clear highlight after 10 seconds
+    setTimeout(() => setHighlightedIds([]), 10000)
   }
 
   return (
@@ -59,6 +67,7 @@ function App() {
                 edges={edges}
                 selectedNode={selectedNode}
                 onSelectNode={setSelectedNode}
+                highlightedIds={highlightedIds}
               />
               <NodeDetailPanel
                 selectedNode={selectedNode}
@@ -70,11 +79,22 @@ function App() {
         </div>
 
         {/* Chat Panel */}
-        {chatOpen && <ChatPanel onNodeClick={handleNodeClick} />}
+        {chatOpen && (
+          <ChatPanel onNodeClick={handleNodeClick} onHighlight={handleHighlight} />
+        )}
       </div>
 
       {/* Status Bar */}
       <StatusBar nodes={nodes} edges={edges} />
+
+      {/* Floating Chat Toggle Button */}
+      <button
+        onClick={() => setChatOpen(o => !o)}
+        className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-accent text-white shadow-lg flex items-center justify-center hover:opacity-90 transition-opacity"
+        title={chatOpen ? 'Close Chat' : 'Open Chat'}
+      >
+        {chatOpen ? '✕' : '💬'}
+      </button>
     </div>
   )
 }

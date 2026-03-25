@@ -12,6 +12,40 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// extractHighlightIDs pulls document IDs from query results
+// so the frontend knows which graph nodes to highlight
+func extractHighlightIDs(rows []map[string]interface{}) []string {
+	seen := map[string]bool{}
+	var ids []string
+
+	// Column names that contain graph node IDs
+	idColumns := []string{
+		"billing_document",
+		"sales_order",
+		"delivery_document",
+		"accounting_document",
+		"payment_doc",
+		"journal_entry",
+		"business_partner",
+		"product",
+		"plant",
+	}
+
+	for _, row := range rows {
+		for _, col := range idColumns {
+			if val, ok := row[col]; ok && val != nil {
+				id := fmt.Sprintf("%v", val)
+				if id != "" && id != "<nil>" && !seen[id] {
+					seen[id] = true
+					ids = append(ids, id)
+				}
+			}
+		}
+	}
+
+	return ids
+}
+
 // Chat handles natural language queries via Groq API
 func (h *Handler) Chat(c *fiber.Ctx) error {
 	clientIP := utils.ExtractClientIP(c.IP(), c.Get("X-Forwarded-For"), c.Get("X-Real-IP"))
@@ -103,7 +137,10 @@ func (h *Handler) Chat(c *fiber.Ctx) error {
 		"row_count": len(rows),
 	})
 
-	// Step 6: Format the answer using Groq
+	// Step 6: Extract IDs to highlight
+	highlightIDs := extractHighlightIDs(rows)
+
+	// Step 7: Format the answer using Groq
 	answer, err := usecases.FormatAnswer(h.groqAPIKey, req.Query, rows)
 	if err != nil {
 		logger.ErrorWithDataIP(utils.CategoryGroq, "Chat - Failed to format answer", clientIP, err, map[string]interface{}{
@@ -111,22 +148,25 @@ func (h *Handler) Chat(c *fiber.Ctx) error {
 		})
 		// Return raw data if formatting fails — don't return 500
 		return c.JSON(domain.ChatResponse{
-			Answer: "Query executed successfully but formatting failed.",
-			SQL:    generatedSQL,
-			Rows:   rows,
+			Answer:       "Query executed successfully but formatting failed.",
+			SQL:          generatedSQL,
+			Rows:         rows,
+			HighlightIDs: highlightIDs,
 		})
 	}
 
 	logger.InfoWithDataIP(utils.CategoryHandler, "Chat - Response ready", clientIP, map[string]interface{}{
-		"query":     req.Query,
-		"answer":    answer,
-		"row_count": len(rows),
+		"query":           req.Query,
+		"answer":          answer,
+		"row_count":       len(rows),
+		"highlight_count": len(highlightIDs),
 	})
 
 	return c.JSON(domain.ChatResponse{
-		Answer: answer,
-		SQL:    generatedSQL,
-		Rows:   rows,
+		Answer:       answer,
+		SQL:          generatedSQL,
+		Rows:         rows,
+		HighlightIDs: highlightIDs,
 	})
 }
 

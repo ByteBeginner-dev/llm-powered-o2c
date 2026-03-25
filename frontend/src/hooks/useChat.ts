@@ -10,6 +10,7 @@ export interface Message {
   timestamp: Date
   sql?: string
   rows?: Array<Record<string, any>>
+  highlightIds?: string[]
 }
 
 export function useChat() {
@@ -28,6 +29,7 @@ export function useChat() {
         timestamp: new Date(),
         sql: data.sql,
         rows: data.rows,
+        highlightIds: data.highlight_ids,
       }
       setMessages((prev) => [...prev, assistantMessage])
     },

@@ -6,6 +6,7 @@ import { ChatInput } from './ChatInput'
 
 interface ChatPanelProps {
   onNodeClick?: (type: string, id: string) => void
+  onHighlight?: (ids: string[]) => void
 }
 
 const EXAMPLE_QUERIES = [
@@ -14,7 +15,7 @@ const EXAMPLE_QUERIES = [
   'Trace the full flow of billing document 90504248',
 ]
 
-export function ChatPanel({ onNodeClick }: ChatPanelProps) {
+export function ChatPanel({ onNodeClick, onHighlight }: ChatPanelProps) {
   const { messages, sendMessage, isLoading } = useChat()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -25,6 +26,14 @@ export function ChatPanel({ onNodeClick }: ChatPanelProps) {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // Fire highlight when last message has highlightIds
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1]
+    if (lastMessage?.role === 'assistant' && lastMessage.highlightIds?.length && onHighlight) {
+      onHighlight(lastMessage.highlightIds)
+    }
+  }, [messages, onHighlight])
 
   const handleExampleQuery = (query: string) => {
     sendMessage(query)

@@ -36,7 +36,8 @@ type ChatRequest struct {
 
 // ChatResponse is the response for /api/chat
 type ChatResponse struct {
-	Answer string                   `json:"answer"`
-	SQL    string                   `json:"sql,omitempty"`
-	Rows   []map[string]interface{} `json:"rows,omitempty"`
+	Answer       string                   `json:"answer"`
+	SQL          string                   `json:"sql,omitempty"`
+	Rows         []map[string]interface{} `json:"rows,omitempty"`
+	HighlightIDs []string                 `json:"highlight_ids,omitempty"`
 }
