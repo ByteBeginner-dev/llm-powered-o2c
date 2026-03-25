@@ -18,12 +18,5 @@ export default defineConfig({
     port: 3000,
     host: true,
     allowedHosts: 'all',
-    proxy: {
-      '/api': {
-        target: 'https://act-character-dental-trust.trycloudflare.com',
-        changeOrigin: true,
-        rewrite: (path) => path,
-      },
-    },
   },
 })

@@ -268,11 +268,11 @@ Response: {
 
 ### Frontend .env (optional)
 ```
-VITE_API_URL=https://act-character-dental-trust.trycloudflare.com
+VITE_API_URL=llm-powered-o2c-production.up.railway.app
 ```
 
 ### Backend Configuration
-Backend must be running on `https://act-character-dental-trust.trycloudflare.com` with:
+Backend must be running on `llm-powered-o2c-production.up.railway.app` with:
 - PostgreSQL database initialized
 - 19 tables with SAP O2C data
 - Groq_API_KEY set for chat endpoint

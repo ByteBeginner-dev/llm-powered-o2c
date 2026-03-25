@@ -14,7 +14,7 @@ export function Header({ chatOpen, onToggleChat }: HeaderProps) {
     // Check connection on mount and every 5 minutes
     const checkConnection = async () => {
       try {
-        const response = await fetch('https://act-character-dental-trust.trycloudflare.com/health', {
+        const response = await fetch('https://llm-powered-o2c-production.up.railway.app/health', {
           mode: 'no-cors',
         })
         setIsConnected(response.ok || response.status === 0)

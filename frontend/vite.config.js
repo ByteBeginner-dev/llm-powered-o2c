@@ -18,7 +18,7 @@ export default defineConfig({
         allowedHosts: 'all',
         proxy: {
             '/api': {
-                target: 'https://act-character-dental-trust.trycloudflare.com',
+                target: 'https://llm-powered-o2c-production.up.railway.app',
                 changeOrigin: true,
                 rewrite: function (path) { return path; },
             },
