@@ -29,6 +29,7 @@ The three core components are:
 1. Graph Construction & Visualization	Entities modeled as nodes, FK relationships as edges, rendered with React Flow
 Conversational Query Interface	Natural language → SQL via Groq LLM → executed on PostgreSQL → formatted answer
 Guardrail System	Multi-layer protection ensuring only O2C-relevant queries are answered
+
 2. Tech Stack
 Layer Technology
 Frontend -> React 18 + TypeScript + Vite [Type-safe, fast HMR, component-driven UI]
@@ -37,6 +38,7 @@ Backend	-> Go + Fiber	[High performance, low latency, strong typing for data pip
 Database -> PostgreSQL (Supabase)	[Native relational model fits O2C FK chains;]
 LLM	Groq API — Llama 3.3 70B	[Free tier (14,400 req/day), ~300ms response, superior SQL generation]
 Deployment	-> Vercel + Railway + Supabase	[Free usage, purpose-optimized for its layer]
+
 3. Architecture Decisions
 3.1 Why PostgreSQL Over a Graph Database
 The O2C dataset is fundamentally relational — every relationship follows a well-defined foreign key chain:
@@ -213,26 +215,26 @@ Run once at startup — ingestion checks if tables are populated before running,
 
 8. Deployment Architecture
 
-┌─────────────────────────────────────┐
-│         Vercel (Frontend)           │
-│   React 18 + TypeScript + Vite      │
-│   https://llm-powered-o2c.vercel.app│
-└─────────────────┬───────────────────┘
-                  │ HTTPS (CORS restricted)
-┌─────────────────▼────────────────────────────────────────┐
-│         Railway (Backend)                                │
-│         Go + Fiber — :8080                               │
-│   https://llm-powered-o2c-production.up.railway.app/     │
-└──────────────┬───────────────────────────────────────────┘
-               │
-    ┌──────────┴───────────┐
-    │                      │
-┌───▼──────────┐  ┌────────▼────────┐
-│   Supabase   │  │   Groq API      │
-│  PostgreSQL  │  │  Llama 3.3 70B  │
-│  19 tables   │  │  SQL Generation │
-│  ~21K rows   │  │                 │
-└──────────────┘  └─────────────────┘
+               ┌─────────────────────────────────────┐
+               │         Vercel (Frontend)           │
+               │   React 18 + TypeScript + Vite      │
+               │   https://llm-powered-o2c.vercel.app│
+               └─────────────────┬───────────────────┘
+                    HTTPS (CORS restricted)
+     ┌──────────────────────────────────────────────────────────┐
+     │         Railway (Backend)                                │
+     │         Go + Fiber — :8080                               │
+     │   https://llm-powered-o2c-production.up.railway.app/     │
+     └──────────────────────────────────────────────────────────┘
+                              │
+                   ┌──────────┴───────────┐
+                   │                      │
+               ┌───▼──────────┐  ┌────────▼────────┐
+               │   Supabase   │  │   Groq API      │
+               │  PostgreSQL  │  │  Llama 3.3 70B  │
+               │  19 tables   │  │  SQL Generation │
+               │  ~21K rows   │  │                 │
+               └──────────────┘  └─────────────────┘
 
 
 Security Implementation :
@@ -259,24 +261,22 @@ Product analytics	"Which products appear in the most billing documents?"	JOIN + 
 Guardrail	"What is the capital of France?"	Rejected — off-topic
 Guardrail	"Write me a poem"	Rejected — off-topic
 
-Execution:
-Running Locally
-
-# 1. Clone the repo
+Execution: Running Locally
+1. Clone the repo
 git clone https://github.com/ByteBeginner-dev/llm-powered-o2c.git
 cd FDE-DodgeAI
 
-# 2. Set up backend environment
-cd backend
+2. Set up backend environment
+cd backend/n
 nano .env
-# Fill in DATABASE_URL, GroqAPIKey, DataDir, PORT
+Fill in DATABASE_URL, GroqAPIKey, DataDir, PORT
 
-# 3. Run backend (migrates + ingests + starts server)
+3. Run backend (migrates + ingests + starts server)
 go run cmd/main.go
 
-# 4. Run frontend
+4. Run frontend
 cd ../frontend
 npm install
 npm run dev
 
-# 5. Open http://localhost:5173
+5. Open http://localhost:5173
