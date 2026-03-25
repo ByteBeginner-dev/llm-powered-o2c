@@ -16,6 +16,11 @@ import (
 // It processes all 19 entity types in FK dependency order.
 // Uses ON CONFLICT DO NOTHING to ensure idempotency.
 func Run(db *sql.DB, dataDir string) error {
+	// Skip ingestion if data already exists
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM products`).Scan(&count); err == nil && count > 0 {
+		return nil
+	}
 	// Ingestion order respects FK dependencies
 	ingestFuncs := []struct {
 		name string
