@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"o2c-graph/internal/adapter/db"
 	"o2c-graph/internal/adapter/http/handlers"
@@ -122,7 +123,7 @@ func main() {
 	})
 
 	// 13. Start server
-	port := cfg.Port
+	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8189"
 	}
